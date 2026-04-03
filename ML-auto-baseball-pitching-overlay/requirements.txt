@@ -1,0 +1,9 @@
+filterpy==1.4.5
+image_registration==0.2.9
+matplotlib==3.9.0
+numpy==1.26.4
+Pillow==10.4.0
+scipy==1.13.1
+tensorflow==2.16.1
+scikit-image==0.22.0
+opencv-python==4.9.0.80
