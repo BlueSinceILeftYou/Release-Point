@@ -15,7 +15,7 @@ from src.SORT_tracker.tracker import Tracker
 
 
 # Get the pitching section in the whole video
-def get_pitch_frames(video_path, infer, input_size, iou, score_threshold):
+def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpening=True):
     print("Video from: ", video_path)
     vid = cv2.VideoCapture(video_path)
 
@@ -73,7 +73,7 @@ def get_pitch_frames(video_path, infer, input_size, iou, score_threshold):
 
         # Detect the baseball in the frame
         detections = detect(
-            infer, frame, input_size, iou, score_threshold, detected_balls
+            infer, frame, input_size, iou, score_threshold, detected_balls, sharpening=sharpening
         )
 
         # Feed in detections to obtain SORT tracking
@@ -129,13 +129,23 @@ def get_pitch_frames(video_path, infer, input_size, iou, score_threshold):
     pitch_frames.extend(frames[last_tracked_frame : last_tracked_frame + 10])
     return pitch_frames, width, height, fps
 
+def unsharp_mask(image, sigma=1.0, strength=1.5):
+    #blur the image
+    blurred = cv2.GaussianBlur(image, (0, 0), sigma)
+    #weighted sum: original * (1 + strength) + blurred * (-strength)
+    sharpened = cv2.addWeighted(image, 1.0 + strength, blurred, -strength, 0)
+    return sharpened
 
 # Tensorflow Object Detection API Sample
-def detect(infer, frame, input_size, iou, score_threshold, detected_balls):
-    image_data = cv2.resize(frame, (input_size, input_size))
+def detect(infer, frame, input_size, iou, score_threshold, detected_balls, sharpening=True):
+    #manipulate frame
+    if sharpening:
+        sharpened_frame = unsharp_mask(frame)
+    else:
+        sharpened_frame = frame
+    image_data = cv2.resize(sharpened_frame, (input_size, input_size))
     image_data = image_data / 255.0
     image_data = image_data[np.newaxis, ...].astype(np.float32)
-
 
     batch_data = tf.constant(image_data)
     pred_bbox = infer(batch_data)

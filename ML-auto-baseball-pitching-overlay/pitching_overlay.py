@@ -51,9 +51,13 @@ if __name__ == "__main__":
         video_path = os.path.join(rootDir, path)
         try:
             ball_frames, width, height, fps = get_pitch_frames(
-                video_path, infer, size, iou, score
+                video_path, infer, size, iou, score, sharpening=True
             )
             pitch_frames.append(ball_frames)
+            #ball_frames, width, height, fps = get_pitch_frames(
+            #    video_path, infer, size, iou, score, sharpening=False
+            #)
+            #pitch_frames.append(ball_frames)
         except Exception as e:
             print(
                 f"Error: Sorry we could not get enough baseball detection from the video, video {path} will not be overlayed"
