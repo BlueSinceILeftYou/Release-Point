@@ -135,3 +135,6 @@ detections
 model/yolov4-baseball-416
 model/yolov4-custom-416
 .vscode
+
+#video data
+data/
