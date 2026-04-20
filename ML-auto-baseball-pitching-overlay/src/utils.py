@@ -4,23 +4,39 @@ import numpy as np
 from src.FrameInfo import FrameInfo
 
 
-def draw_ball_curve(frame, trajectory):
+TUNNEL_COLOR = (240, 240, 240)
+
+
+def draw_ball_curve(frame, trajectory, divergence_idx=None):
     trajectory_weight = 0.7
-    temp_frame = frame.copy()
 
-    if len(trajectory):
-        ball_points = copy.deepcopy(trajectory)
-        for point in ball_points:
-            color = point[2]
-            del point[2]
-        ball_points = np.array(ball_points, dtype="int32")
-        cv2.polylines(temp_frame, [ball_points], False, color, 22, lineType=cv2.LINE_AA)
-        frame = cv2.addWeighted(
-            temp_frame, trajectory_weight, frame, 1 - trajectory_weight, 0
-        )
+    if not len(trajectory):
+        return frame
 
-        last_ball = tuple(trajectory[-1][:-1])
-        cv2.circle(frame, tuple(last_ball), 13, (255, 255, 255), -1)
+    pitch_color = trajectory[-1][2]
+    split = (
+        divergence_idx
+        if divergence_idx is not None and 0 < divergence_idx < len(trajectory)
+        else len(trajectory)
+    )
+
+    def _draw_segment(f, points, color):
+        if len(points) < 2:
+            return f
+        tmp = f.copy()
+        pts = np.array(points, dtype="int32")
+        cv2.polylines(tmp, [pts], False, color, 22, lineType=cv2.LINE_AA)
+        return cv2.addWeighted(tmp, trajectory_weight, f, 1 - trajectory_weight, 0)
+
+    pre_pts = [[p[0], p[1]] for p in trajectory[:split]]
+    # overlap by one point so segments connect cleanly
+    post_pts = [[p[0], p[1]] for p in trajectory[max(0, split - 1) :]]
+
+    frame = _draw_segment(frame, pre_pts, TUNNEL_COLOR)
+    frame = _draw_segment(frame, post_pts, pitch_color)
+
+    last_ball = (trajectory[-1][0], trajectory[-1][1])
+    cv2.circle(frame, last_ball, 13, (255, 255, 255), -1)
     return frame
 
 

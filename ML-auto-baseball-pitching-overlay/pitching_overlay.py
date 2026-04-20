@@ -45,8 +45,8 @@ if __name__ == "__main__":
     # Store the pitch frames and ball location of each video
     pitch_frames = []
 
-    # Iterate all videos in the folder
-    for idx, path in enumerate(os.listdir(rootDir)):
+    # Iterate all videos in the folder, skipping the output file
+    for idx, path in enumerate(p for p in os.listdir(rootDir) if p != os.path.basename(outputPath)):
         print(f"Processing Video {idx + 1}")
         video_path = os.path.join(rootDir, path)
         try:
@@ -65,4 +65,4 @@ if __name__ == "__main__":
             print(e)
 
     if len(pitch_frames):
-        generate_overlay(pitch_frames, width, height, fps, outputPath)
+        generate_overlay(pitch_frames, width, height, fps, outputPath, registration_type="orb")

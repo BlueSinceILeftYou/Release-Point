@@ -4,9 +4,13 @@ import copy
 from image_registration import cross_correlation_shifts
 from src.utils import draw_ball_curve, fill_lost_tracking
 from src.FrameInfo import FrameInfo
+from src.tunneling import draw_tunnel_zone
+
+_DIVERGE_THRESHOLD = 40
+_DIVERGE_CONSECUTIVE = 3
 
 
-def generate_overlay(video_frames, width, height, fps, outputPath, registration_type, registration_threshold=0.75):
+def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75):
     print("Saving overlay result to", outputPath)
     codec = cv2.VideoWriter_fourcc(*"XVID")
     out = cv2.VideoWriter(outputPath, codec, fps / 2, (width, height))
@@ -14,6 +18,10 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
     frame_lists = sorted(video_frames, key=len, reverse=True)
     balls_in_curves = [[] for i in range(len(frame_lists))]
     shifts = {}
+
+    divergence_frame = None
+    divergence_curve_len = None
+    diverge_run = 0
 
     # Take the longest frames as background
     for idx, base_frame in enumerate(frame_lists[0]):
@@ -66,9 +74,36 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
             0,
         )
 
+        # Track divergence using transformed ball positions
+        if divergence_frame is None:
+            current_positions = [c[-1][:2] for c in balls_in_curves if c]
+            if len(current_positions) >= 2:
+                max_dist = max(
+                    ((current_positions[i][0] - current_positions[j][0]) ** 2
+                     + (current_positions[i][1] - current_positions[j][1]) ** 2) ** 0.5
+                    for i in range(len(current_positions))
+                    for j in range(i + 1, len(current_positions))
+                )
+                if max_dist > _DIVERGE_THRESHOLD:
+                    diverge_run += 1
+                    if diverge_run >= _DIVERGE_CONSECUTIVE:
+                        divergence_frame = idx - _DIVERGE_CONSECUTIVE + 1
+                        divergence_curve_len = (
+                            max(len(c) for c in balls_in_curves) - _DIVERGE_CONSECUTIVE + 1
+                        )
+                        print(f"Pitch divergence at frame {divergence_frame}")
+                else:
+                    diverge_run = 0
+
+        # Draw tunnel zone behind trajectories
+        current_positions = [c[-1][:2] for c in balls_in_curves if c]
+        background_frame = draw_tunnel_zone(
+            background_frame, current_positions, idx, divergence_frame
+        )
+
         # Draw transparent curve and non-transparent balls
         for trajectory in balls_in_curves:
-            background_frame = draw_ball_curve(background_frame, trajectory)
+            background_frame = draw_ball_curve(background_frame, trajectory, divergence_curve_len)
 
         result_frame = cv2.cvtColor(background_frame, cv2.COLOR_RGB2BGR)
         cv2.imshow("result_frame", result_frame)
