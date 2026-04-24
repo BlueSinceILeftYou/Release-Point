@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 End-to-end pipeline:
-  1. Download Statcast data for a date (no videos yet)
+  1. Download Statcast data for a date
   2. Compute TDR on all consecutive pitch pairs to find the best tunneling pairs
   3. Download only the two videos per top pair
   4. Generate and save the overlay for each pair
@@ -259,7 +259,7 @@ def step4_generate_overlays(pair_dirs: list[Path], out_dir: Path):
             print(f"    [skip] not enough successful detections")
             continue
 
-        output_path = out_dir / f"{pair_dir.name}_overlay.avi"
+        output_path = out_dir / f"{pair_dir.name}_overlay.mp4"
         generate_overlay(pitch_frames, width, height, fps, str(output_path), registration_type="orb")
         print(f"    Saved → {output_path}")
 

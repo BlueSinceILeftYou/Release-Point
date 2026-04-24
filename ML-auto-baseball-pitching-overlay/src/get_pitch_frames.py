@@ -170,7 +170,7 @@ def detect(infer, frame, input_size, iou, score_threshold, detected_balls, sharp
     valid_detections = valid_detections.numpy()
 
     offset = 100
-    accuracyThreshold = 0.95
+    accuracyThreshold = 0.85
     frame_h, frame_w, _ = frame.shape
     detections = []
 

@@ -12,7 +12,7 @@ _DIVERGE_CONSECUTIVE = 3
 
 def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75):
     print("Saving overlay result to", outputPath)
-    codec = cv2.VideoWriter_fourcc(*"XVID")
+    codec = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(outputPath, codec, fps / 2, (width, height))
 
     frame_lists = sorted(video_frames, key=len, reverse=True)
