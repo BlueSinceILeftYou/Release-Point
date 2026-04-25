@@ -41,7 +41,8 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
                 )
             else:
                 corrected_frame, ball_pos = new_image_registration(
-                    background_frame, overlay_frame, registration_threshold, shifts, list_idx, width, height
+                    background_frame, overlay_frame, registration_threshold, shifts, list_idx, width, height,
+                    ref_ball=base_frame.ball, ref_ball_in_frame=base_frame.ball_in_frame
                 )
                 overlay_frame.ball = ball_pos
 
@@ -116,36 +117,51 @@ _orb = cv2.ORB_create(nfeatures=1000)
 # brute force matcher init
 _bf = cv2.BFMatcher(cv2.NORM_HAMMING)
 
-def new_image_registration(ref_image, offset_image, threshold, transforms, list_idx, width, height):
+_BALL_MASK_RADIUS = 40
+
+def new_image_registration(ref_image, offset_image, threshold, transforms, list_idx, width, height,
+                           ref_ball=None, ref_ball_in_frame=False):
     """references opencv feature matching and homography estimation tutorial: 
         https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
     """
     
     gray_ref = cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
     gray_offset = cv2.cvtColor(offset_image.frame, cv2.COLOR_BGR2GRAY)
-     
-    # Find key points with ORB
-    kp1, des1 = _orb.detectAndCompute(gray_ref, None)
-    kp2, des2 = _orb.detectAndCompute(gray_offset, None)
 
-    # Use BF matcher to match the two kps\
-    matches = _bf.knnMatch(des1, des2, k=2)
-    val_patches = []
-    for pairs in matches:
-        if len(pairs) == 2:
-            m, n = pairs        
-            # for each kp, if distance is close enough, consider it as a match
-            if m.distance < threshold * n.distance:
-                val_patches.append(m)
-    
-    # compute the homography matrix with RANSAC 
-    ref_pts = np.float32([kp1[m.queryIdx].pt for m in val_patches])
-    offset_pts = np.float32([kp2[m.trainIdx].pt for m in val_patches])
+    if list_idx not in transforms:
+        # Build masks that block ball regions so ball keypoints don't contaminate the homography
+        # also for later similarity comparison 
+        ref_mask = np.ones_like(gray_ref, dtype=np.uint8) * 255
+        offset_mask = np.ones_like(gray_offset, dtype=np.uint8) * 255
+        if ref_ball_in_frame and ref_ball is not None:
+            cv2.circle(ref_mask, ref_ball, _BALL_MASK_RADIUS, 0, -1)
+        if offset_image.ball_in_frame:
+            cv2.circle(offset_mask, offset_image.ball, _BALL_MASK_RADIUS, 0, -1)
 
-    M, inliers = cv2.findHomography(offset_pts, ref_pts, cv2.RANSAC, 5.0)
-    
-    # add homography matrix to the list of transforms
-    transforms[list_idx] = M
+        # Find key points with ORB
+        kp1, des1 = _orb.detectAndCompute(gray_ref, ref_mask)
+        kp2, des2 = _orb.detectAndCompute(gray_offset, offset_mask)
+
+        # Use BF matcher to match the two kps
+        matches = _bf.knnMatch(des1, des2, k=2)
+        val_patches = []
+        for pairs in matches:
+            if len(pairs) == 2:
+                m, n = pairs
+                # for each kp, if distance is close enough, consider it as a match
+                if m.distance < threshold * n.distance:
+                    val_patches.append(m)
+
+        # compute the homography matrix with RANSAC
+        ref_pts = np.float32([kp1[m.queryIdx].pt for m in val_patches])
+        offset_pts = np.float32([kp2[m.trainIdx].pt for m in val_patches])
+
+        M, inliers = cv2.findHomography(offset_pts, ref_pts, cv2.RANSAC, 5.0)
+
+        # cache the homography — computed once per video pair
+        transforms[list_idx] = M
+
+    M = transforms[list_idx]
 
     # transform ball
     ball_pt = np.float32([[offset_image.ball[0], offset_image.ball[1]]]).reshape(-1, 1, 2)
