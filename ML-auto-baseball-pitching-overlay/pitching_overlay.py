@@ -65,4 +65,4 @@ if __name__ == "__main__":
             print(e)
 
     if len(pitch_frames):
-        generate_overlay(pitch_frames, width, height, fps, outputPath, registration_type="orb")
+        generate_overlay(pitch_frames, width, height, fps, outputPath, registration_type="orb", debug_keypoints=True)
