@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 import copy
@@ -39,7 +40,8 @@ def compute_masked_mse(ref_image, corrected_image, ref_ball=None, overlay_ball=N
 
     return diff[mask_bool].mean()
 
-def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75):
+def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75, debug_keypoints=False):
+    output_dir = os.path.dirname(os.path.abspath(outputPath))
     print("Saving overlay result to", outputPath)
     codec = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(outputPath, codec, fps / 2, (width, height))
@@ -73,7 +75,8 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
             else:
                 corrected_frame, ball_pos, mse = new_image_registration(
                     background_frame, overlay_frame, registration_threshold, shifts, list_idx, width, height,
-                    ref_ball=base_frame.ball, ref_ball_in_frame=base_frame.ball_in_frame
+                    ref_ball=base_frame.ball, ref_ball_in_frame=base_frame.ball_in_frame,
+                    draw_keypoints=debug_keypoints, output_dir=output_dir
                 )
                 overlay_frame.ball = ball_pos
 
@@ -160,11 +163,16 @@ _orb = cv2.ORB_create(nfeatures=1000)
 _bf = cv2.BFMatcher(cv2.NORM_HAMMING)
 
 _BALL_MASK_RADIUS = 40
+# Fraction of frame height to mask at top and bottom to exclude scorebug/broadcast overlays
+_SCOREBUG_MASK_FRACTION = 0.15
 
 def new_image_registration(ref_image, offset_image, threshold, transforms, list_idx, width, height,
-                           ref_ball=None, ref_ball_in_frame=False):
+                           ref_ball=None, ref_ball_in_frame=False, draw_keypoints=False, output_dir="."):
     """references opencv feature matching and homography estimation tutorial: 
         https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
+
+    If draw_keypoints=True, opens a debug window showing the Lowe-ratio-filtered matches
+    between the two frames (only on the first call when the homography is computed).
     """
     
     gray_ref = cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
@@ -175,6 +183,14 @@ def new_image_registration(ref_image, offset_image, threshold, transforms, list_
         # also for later similarity comparison 
         ref_mask = np.ones_like(gray_ref, dtype=np.uint8) * 255
         offset_mask = np.ones_like(gray_offset, dtype=np.uint8) * 255
+
+        # Mask top and bottom strips to exclude static broadcast scorebug overlays
+        scorebug_h = int(gray_ref.shape[0] * _SCOREBUG_MASK_FRACTION)
+        ref_mask[:scorebug_h, :] = 0
+        ref_mask[-scorebug_h:, :] = 0
+        offset_mask[:scorebug_h, :] = 0
+        offset_mask[-scorebug_h:, :] = 0
+
         if ref_ball_in_frame and ref_ball is not None:
             cv2.circle(ref_mask, ref_ball, _BALL_MASK_RADIUS, 0, -1)
         if offset_image.ball_in_frame:
@@ -199,6 +215,54 @@ def new_image_registration(ref_image, offset_image, threshold, transforms, list_
         offset_pts = np.float32([kp2[m.trainIdx].pt for m in val_patches])
 
         M, inliers = cv2.findHomography(offset_pts, ref_pts, cv2.RANSAC, 5.0)
+
+        if draw_keypoints:
+            # convert back to color for the image
+            ref_bgr = cv2.cvtColor(ref_image, cv2.COLOR_RGB2BGR)
+            offset_bgr = cv2.cvtColor(offset_image.frame, cv2.COLOR_RGB2BGR)
+
+            def _show_and_save(img, title, filename):
+                # fit display
+                max_w = 1920
+                if img.shape[1] > max_w:
+                    scale = max_w / img.shape[1]
+                    img = cv2.resize(img, (max_w, int(img.shape[0] * scale)))
+                cv2.imwrite(filename, img)
+                print(f"[debug] saved {filename}")
+                cv2.namedWindow(title, cv2.WINDOW_NORMAL)
+                cv2.resizeWindow(title, img.shape[1], img.shape[0])
+                cv2.imshow(title, img)
+                cv2.waitKey(0)
+                cv2.destroyWindow(title)
+
+            #  all detected keypoints (rich: circle size = scale, line = orientation)
+            _YELLOW = (0, 255, 255)  # BGR yellow
+            ref_kp_img = cv2.drawKeypoints(
+                ref_bgr, kp1, None, color=_YELLOW,
+                flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+            )
+            offset_kp_img = cv2.drawKeypoints(
+                offset_bgr, kp2, None, color=_YELLOW,
+                flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+            )
+            for img, label in [(ref_kp_img, f"Reference  ({len(kp1)} kp)"), (offset_kp_img, f"Overlay  ({len(kp2)} kp)")]:
+                cv2.putText(img, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+            all_kp_img = np.hstack([ref_kp_img, offset_kp_img])
+            _show_and_save(all_kp_img, f"All keypoints (pair {list_idx})", os.path.join(output_dir, f"debug_kp_pair{list_idx}.jpg"))
+
+            # matching keypoints
+            inlier_matches = [val_patches[i] for i, flag in enumerate(inliers) if flag]
+            match_img = cv2.drawMatches(
+                ref_bgr, kp1,
+                offset_bgr, kp2,
+                inlier_matches, None,
+                matchColor=_YELLOW,
+                singlePointColor=_YELLOW,
+                flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS | cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+            )
+            cv2.putText(match_img, f"{len(inlier_matches)} inlier matches  |  threshold={threshold}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+            _show_and_save(match_img, f"Inlier matches (pair {list_idx})", os.path.join(output_dir, f"debug_matches_pair{list_idx}.jpg"))
 
         # cache the homography — computed once per video pair
         transforms[list_idx] = M

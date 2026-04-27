@@ -16,6 +16,7 @@ from datetime import date
 from pathlib import Path
 from itertools import pairwise
 
+import cv2
 import numpy as np
 import pandas as pd
 import requests
@@ -31,6 +32,7 @@ import tensorflow as tf
 from tensorflow.python.saved_model import tag_constants
 from src.get_pitch_frames import get_pitch_frames
 from src.generate_overlay import generate_overlay
+from trim_clips import detect_scene_change, find_trime_frame, trim_and_save
 
 warnings.simplefilter("ignore")
 tf.get_logger().setLevel(logging.ERROR)
@@ -120,6 +122,17 @@ def download_video(play_id, out_path, video_type=VIDEO_TYPE):
         for chunk in r.iter_content(chunk_size=65536):
             f.write(chunk)
     return True
+
+# ── Preprocessing ─────────────────────────────────────────────────────────────
+def trim_video(video_path: Path):
+    cap = cv2.VideoCapture(str(video_path))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    scene_changes = detect_scene_change(cap, 3, fps)
+    cap.release()
+    trim_frame = find_trime_frame(scene_changes)
+    if trim_frame > 0:
+        trim_and_save(video_path, trim_frame, video_path)
+        print(f"    Trimmed {video_path.name} at frame {trim_frame}")
 
 # ── Pipeline steps ────────────────────────────────────────────────────────────
 def step1_fetch_statcast(target_date: str) -> pd.DataFrame:
@@ -217,6 +230,8 @@ def step3_download_videos(pairs_df: pd.DataFrame, out_dir: Path) -> list[Path]:
                     kb = out_path.stat().st_size // 1024 if ok else 0
                     status = "OK" if ok else "miss"
                     print(f"  [{status}] {label}/{fname} ({kb} KB)")
+                    if ok:
+                        trim_video(out_path)
                 except Exception as e:
                     print(f"  [ERR] {label}/{fname}: {e}")
             time.sleep(1.2)
