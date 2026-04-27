@@ -116,9 +116,9 @@ def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpe
 
         result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         detection = cv2.resize((result), (0, 0), fx=0.5, fy=0.5)
-        cv2.imshow("result", detection)
-        if cv2.waitKey(50) & 0xFF == ord("q"):
-            break
+        # cv2.imshow("result", detection)
+        # if cv2.waitKey(50) & 0xFF == ord("q"):
+        #     break
 
         frame_id += 1
 

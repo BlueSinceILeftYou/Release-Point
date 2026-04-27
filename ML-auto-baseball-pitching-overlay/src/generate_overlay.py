@@ -152,10 +152,10 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
             background_frame = draw_ball_curve(background_frame, trajectory, divergence_curve_len)
 
         result_frame = cv2.cvtColor(background_frame, cv2.COLOR_RGB2BGR)
-        cv2.imshow("result_frame", result_frame)
+        # cv2.imshow("result_frame", result_frame)
         out.write(result_frame)
-        if cv2.waitKey(60) & 0xFF == ord("q"):
-            break
+        # if cv2.waitKey(60) & 0xFF == ord("q"):
+        #     break
 
 # ORB detector init
 _orb = cv2.ORB_create(nfeatures=1000)
