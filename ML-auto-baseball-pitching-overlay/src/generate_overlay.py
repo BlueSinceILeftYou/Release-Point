@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import copy
+import csv 
+import os
 from image_registration import cross_correlation_shifts
 from src.utils import draw_ball_curve, fill_lost_tracking
 from src.FrameInfo import FrameInfo
@@ -9,6 +11,33 @@ from src.tunneling import draw_tunnel_zone
 _DIVERGE_THRESHOLD = 40
 _DIVERGE_CONSECUTIVE = 3
 
+def _save_mse_log(mse_log, outputPath):
+    base = os.path.splitext(outputPath)[0]
+    
+    path = base + "_mse.csv"
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=mse_log[0].keys())
+        writer.writeheader()
+        writer.writerows(mse_log)
+    
+    print(f"MSE log saved to {path}")
+
+def compute_masked_mse(ref_image, corrected_image, ref_ball=None, overlay_ball=None):
+    # Compute MSE between reference image and transformed image
+    mask = np.ones(ref_image.shape[:2], dtype=np.uint8)
+
+    if ref_ball is not None:
+        cv2.circle(mask, ref_ball, _BALL_MASK_RADIUS, 0, -1)
+
+    if overlay_ball is not None:
+        cv2.circle(mask, overlay_ball, _BALL_MASK_RADIUS, 0, -1)
+
+    mask_bool = mask.astype(bool)
+
+    diff = ref_image.astype(float) - corrected_image.astype(float)
+    diff = diff ** 2 
+
+    return diff[mask_bool].mean()
 
 def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75):
     print("Saving overlay result to", outputPath)
@@ -23,6 +52,8 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
     divergence_curve_len = None
     diverge_run = 0
 
+    mse_log = []
+
     # Take the longest frames as background
     for idx, base_frame in enumerate(frame_lists[0]):
         # Overlay frames
@@ -36,11 +67,11 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
             alpha = 1.0 / (list_idx + 2)
             beta = 1.0 - alpha
             if registration_type == "cross_correlation":
-                corrected_frame = image_registration(
+                corrected_frame, mse = image_registration(
                     background_frame, overlay_frame, shifts, list_idx, width, height
                 )
             else:
-                corrected_frame, ball_pos = new_image_registration(
+                corrected_frame, ball_pos, mse = new_image_registration(
                     background_frame, overlay_frame, registration_threshold, shifts, list_idx, width, height,
                     ref_ball=base_frame.ball, ref_ball_in_frame=base_frame.ball_in_frame
                 )
@@ -60,6 +91,15 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
                     ]
                 )
 
+            mse_log.append({
+                "frame_idx": idx,
+                "video_pair": list_idx + 1,   # 0 is base, so overlay pairs start at 1
+                "registration_type": registration_type,
+                "mse": mse,
+                "ref_ball": base_frame.ball if base_frame.ball_in_frame else None,
+                "overlay_ball": overlay_frame.ball if overlay_frame.ball_in_frame else None,
+            })
+
         if base_frame.ball_in_frame:
             balls_in_curves[0].append(
                 [base_frame.ball[0], base_frame.ball[1], base_frame.ball_color]
@@ -74,6 +114,8 @@ def generate_overlay(video_frames, width, height, fps, outputPath, registration_
             1 - base_frame_weight,
             0,
         )
+
+        _save_mse_log(mse_log, outputPath)
 
         # Track divergence using transformed ball positions
         if divergence_frame is None:
@@ -171,7 +213,14 @@ def new_image_registration(ref_image, offset_image, threshold, transforms, list_
     # correct image
     corrected_image = cv2.warpPerspective(offset_image.frame, M, (width, height))
 
-    return corrected_image, ball_pos
+    mse = compute_masked_mse(
+        ref_image,
+        corrected_image,
+        ref_ball=ref_ball if ref_ball_in_frame else None,
+        overlay_ball=ball_pos  # already transformed to ref frame coords
+    )
+
+    return corrected_image, ball_pos, mse
 
 def image_registration(ref_image, offset_image, shifts, list_idx, width, height):
     # The shift is calculated once for each video and stored
@@ -189,4 +238,10 @@ def image_registration(ref_image, offset_image, shifts, list_idx, width, height)
     matrix = np.float32([[1, 0, -xoff], [0, 1, -yoff]])
     corrected_image = cv2.warpAffine(offset_image.frame, matrix, (width, height))
 
-    return corrected_image
+    mse = compute_masked_mse(
+        ref_image,
+        corrected_image,
+        overlay_ball=offset_image.ball  
+    )
+
+    return corrected_image, mse
