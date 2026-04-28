@@ -41,7 +41,7 @@ tf.get_logger().setLevel(logging.ERROR)
 VIDEO_TYPE      = "HOME"
 TUNNEL_POINT    = 0.125   # seconds — decision point from TDR paper
 PLATE_TIME      = 0.330   # seconds — release to plate
-MIN_TDR         = 0.3     # pairs below this are skipped
+MAX_TDR         = 0.3     # pairs below this are skipped
 TOP_N_PAIRS     = 5       # max pairs to process per run
 MIN_PITCHES     = 3
 MAX_PITCHES     = 8
@@ -197,8 +197,8 @@ def step2_find_tunnel_pairs(df: pd.DataFrame) -> pd.DataFrame:
             })
 
     pairs_df = pd.DataFrame(pairs).dropna(subset=["TDR"])
-    top = pairs_df[pairs_df["TDR"] >= MIN_TDR].nlargest(TOP_N_PAIRS, "TDR")
-    print(f"    {len(pairs_df)} pairs computed, {len(top)} above TDR={MIN_TDR}")
+    top = pairs_df[pairs_df["TDR"] >= MAX_TDR].nsmallest(TOP_N_PAIRS, "TDR")
+    print(f"    {len(pairs_df)} pairs computed, {len(top)} above TDR={MAX_TDR}")
     if len(top):
         print(top[["pitch1_type", "pitch2_type", "early_sep", "late_sep", "TDR"]].to_string(index=False))
     return top
@@ -275,7 +275,11 @@ def step4_generate_overlays(pair_dirs: list[Path], out_dir: Path):
             continue
 
         output_path = out_dir / f"{pair_dir.name}_overlay.mp4"
-        generate_overlay(pitch_frames, width, height, fps, str(output_path), registration_type="orb")
+        #orb_path = out_dir / f"{pair_dir.name}_orb_overlay.mp4"
+        #cross_path = out_dir / f"{pair_dir.name}_cross_overlay.mp4"
+        #generate_overlay(pitch_frames, width, height, fps, str(orb_path), registration_type="orb")
+        #generate_overlay(pitch_frames, width, height, fps, str(cross_path), registration_type="cross_correlation")
+        generate_overlay(pitch_frames, width, height, fps, str(output_path), registration_type="cross_correlation")
         print(f"    Saved → {output_path}")
 
 

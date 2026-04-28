@@ -14,8 +14,8 @@ _DIVERGE_CONSECUTIVE = 3
 
 def _save_mse_log(mse_log, outputPath):
     base = os.path.splitext(outputPath)[0]
-    
     path = base + "_mse.csv"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=mse_log[0].keys())
         writer.writeheader()
@@ -40,7 +40,7 @@ def compute_masked_mse(ref_image, corrected_image, ref_ball=None, overlay_ball=N
 
     return diff[mask_bool].mean()
 
-def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75, debug_keypoints=False):
+def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75, debug_keypoints=True):
     output_dir = os.path.dirname(os.path.abspath(outputPath))
     print("Saving overlay result to", outputPath)
     codec = cv2.VideoWriter_fourcc(*"mp4v")
@@ -229,11 +229,12 @@ def new_image_registration(ref_image, offset_image, threshold, transforms, list_
                     img = cv2.resize(img, (max_w, int(img.shape[0] * scale)))
                 cv2.imwrite(filename, img)
                 print(f"[debug] saved {filename}")
+                """
                 cv2.namedWindow(title, cv2.WINDOW_NORMAL)
                 cv2.resizeWindow(title, img.shape[1], img.shape[0])
                 cv2.imshow(title, img)
                 cv2.waitKey(0)
-                cv2.destroyWindow(title)
+                cv2.destroyWindow(title)"""
 
             #  all detected keypoints (rich: circle size = scale, line = orientation)
             _YELLOW = (0, 255, 255)  # BGR yellow

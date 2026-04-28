@@ -15,7 +15,7 @@ from src.SORT_tracker.tracker import Tracker
 
 
 # Get the pitching section in the whole video
-def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpening=True):
+def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpening=False):
     print("Video from: ", video_path)
     vid = cv2.VideoCapture(video_path)
 
@@ -107,6 +107,10 @@ def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpe
                 pitch_frames.extend(frames[-20:])
 
             # Add lost frames if any
+            if(frame_id - last_tracked_frame > 8):
+                print("max age exceeded")
+                break
+
             add_lost_frames(frame_id, last_tracked_frame, frames, pitch_frames)
 
             # Append the frame with detected ball location
@@ -170,7 +174,7 @@ def detect(infer, frame, input_size, iou, score_threshold, detected_balls, sharp
     valid_detections = valid_detections.numpy()
 
     offset = 100
-    accuracyThreshold = 0.85
+    accuracyThreshold = 0.95
     frame_h, frame_w, _ = frame.shape
     detections = []
 
