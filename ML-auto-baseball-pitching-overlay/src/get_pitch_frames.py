@@ -58,6 +58,7 @@ def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpe
     frames = []
     tracker_min_hits = 3
     frame_id = 0
+    last_tracked_frame = 0
 
     # Create Object Tracker
     tracker = Sort(max_age=8, min_hits=tracker_min_hits, iou_threshold=0.1)
@@ -127,7 +128,12 @@ def get_pitch_frames(video_path, infer, input_size, iou, score_threshold, sharpe
 
     # Add five more frames after the last tracked frame
     pitch_frames.extend(frames[last_tracked_frame : last_tracked_frame + 10])
-    return pitch_frames, width, height, fps
+
+    # Index of the first frame where the ball is confirmed — used by generate_overlay
+    # to align multiple pitch sequences to the same release-point reference.
+    first_ball_idx = next((i for i, f in enumerate(pitch_frames) if f.ball_in_frame), 0)
+
+    return pitch_frames, width, height, fps, first_ball_idx
 
 def unsharp_mask(image, sigma=1.0, strength=1.5):
     #blur the image

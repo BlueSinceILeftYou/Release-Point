@@ -44,20 +44,23 @@ if __name__ == "__main__":
 
     # Store the pitch frames and ball location of each video
     pitch_frames = []
+    first_ball_indices = []
 
     # Iterate all videos in the folder, skipping the output file
     for idx, path in enumerate(p for p in os.listdir(rootDir) if p != os.path.basename(outputPath)):
         print(f"Processing Video {idx + 1}")
         video_path = os.path.join(rootDir, path)
         try:
-            ball_frames, width, height, fps = get_pitch_frames(
+            ball_frames, width, height, fps, first_ball_idx = get_pitch_frames(
                 video_path, infer, size, iou, score, sharpening=True
             )
             pitch_frames.append(ball_frames)
-            #ball_frames, width, height, fps = get_pitch_frames(
+            first_ball_indices.append(first_ball_idx)
+            #ball_frames, width, height, fps, first_ball_idx = get_pitch_frames(
             #    video_path, infer, size, iou, score, sharpening=False
             #)
             #pitch_frames.append(ball_frames)
+            #first_ball_indices.append(first_ball_idx)
         except Exception as e:
             print(
                 f"Error: Sorry we could not get enough baseball detection from the video, video {path} will not be overlayed"
@@ -65,4 +68,4 @@ if __name__ == "__main__":
             print(e)
 
     if len(pitch_frames):
-        generate_overlay(pitch_frames, width, height, fps, outputPath, registration_type="orb", debug_keypoints=True)
+        generate_overlay(pitch_frames, width, height, fps, outputPath, first_ball_indices=first_ball_indices, registration_type="orb", debug_keypoints=True)

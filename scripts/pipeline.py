@@ -258,15 +258,17 @@ def step4_generate_overlays(pair_dirs: list[Path], out_dir: Path):
 
         print(f"\n  Processing {pair_dir.name}...")
         pitch_frames = []
+        first_ball_indices = []
         width = height = fps = None
         for video_path in videos:
             try:
-                frames, w, h, f = get_pitch_frames(
+                frames, w, h, f, first_ball_idx = get_pitch_frames(
                     str(video_path), infer, 416, 0.45, 0.5, sharpening=True
                 )
                 pitch_frames.append(frames)
+                first_ball_indices.append(first_ball_idx)
                 width, height, fps = w, h, f
-                print(f"    {video_path.name}: {len(frames)} frames")
+                print(f"    {video_path.name}: {len(frames)} frames, first ball at idx {first_ball_idx}")
             except Exception as e:
                 print(f"    [ERR] {video_path.name}: {e}")
 
@@ -275,7 +277,7 @@ def step4_generate_overlays(pair_dirs: list[Path], out_dir: Path):
             continue
 
         output_path = out_dir / f"{pair_dir.name}_overlay.mp4"
-        generate_overlay(pitch_frames, width, height, fps, str(output_path), registration_type="orb")
+        generate_overlay(pitch_frames, width, height, fps, str(output_path), first_ball_indices=first_ball_indices, registration_type="orb")
         print(f"    Saved → {output_path}")
 
 

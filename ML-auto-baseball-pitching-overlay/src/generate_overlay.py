@@ -40,13 +40,24 @@ def compute_masked_mse(ref_image, corrected_image, ref_ball=None, overlay_ball=N
 
     return diff[mask_bool].mean()
 
-def generate_overlay(video_frames, width, height, fps, outputPath, registration_type="orb", registration_threshold=0.75, debug_keypoints=False):
+def generate_overlay(video_frames, width, height, fps, outputPath, first_ball_indices=None, registration_type="orb", registration_threshold=0.75, debug_keypoints=False):
     output_dir = os.path.dirname(os.path.abspath(outputPath))
     print("Saving overlay result to", outputPath)
     codec = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(outputPath, codec, fps / 2, (width, height))
 
-    frame_lists = sorted(video_frames, key=len, reverse=True)
+    # Sort by descending length, keeping first_ball_indices paired
+    if first_ball_indices is not None:
+        paired = sorted(zip(video_frames, first_ball_indices), key=lambda x: len(x[0]), reverse=True)
+        frame_lists_raw = [p[0] for p in paired]
+        ball_indices = [p[1] for p in paired]
+        # Trim the front of each list so every sequence's first ball frame is aligned
+        max_ball_idx = max(ball_indices)
+        frame_lists = [fl[max_ball_idx - bi:] for fl, bi in zip(frame_lists_raw, ball_indices)]
+        print(f"Sync: aligning {len(frame_lists)} videos to first-ball index {max_ball_idx} "
+              f"(trims: {[max_ball_idx - bi for bi in ball_indices]})")
+    else:
+        frame_lists = sorted(video_frames, key=len, reverse=True)
     balls_in_curves = [[] for i in range(len(frame_lists))]
     shifts = {}
 
