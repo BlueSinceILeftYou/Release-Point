@@ -197,7 +197,7 @@ def step2_find_tunnel_pairs(df: pd.DataFrame) -> pd.DataFrame:
             })
 
     pairs_df = pd.DataFrame(pairs).dropna(subset=["TDR"])
-    top = pairs_df[pairs_df["TDR"] >= MAX_TDR].nsmallest(TOP_N_PAIRS, "TDR")
+    top = pairs_df[pairs_df["TDR"] <= MAX_TDR].nsmallest(TOP_N_PAIRS, "TDR")
     print(f"    {len(pairs_df)} pairs computed, {len(top)} above TDR={MAX_TDR}")
     if len(top):
         print(top[["pitch1_type", "pitch2_type", "early_sep", "late_sep", "TDR"]].to_string(index=False))
@@ -303,7 +303,7 @@ def main():
 
     top_pairs = step2_find_tunnel_pairs(statcast_df)
     if top_pairs.empty:
-        print(f"No pairs found above TDR={MIN_TDR}. Exiting.")
+        print(f"No pairs found above TDR={MAX_TDR}. Exiting.")
         return
 
     top_pairs.to_csv(out_dir / "top_pairs.csv", index=False)
