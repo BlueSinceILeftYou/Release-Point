@@ -1,0 +1,8 @@
+Performs very poorly at certain angles where trajectory seems straight
+
+shortcomings seem to be due to yolo detection model not working properly
+
+it appears that sometimes the yolo model thinks that the catchers mitt is the baseball
+
+perhaps we can do object segmentation or remove colors that are too dark or too light to be the baseball
+to make it easier for the model
